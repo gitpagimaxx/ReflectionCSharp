@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using ByteBank.Portal.Controller;
 using System.Net;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace ByteBank.Portal.Infra;
 
@@ -20,50 +17,62 @@ public class WebApplication
         _prefixes = prefixes;
     }
 
-    public void Start()
+    public void Iniciar()
     {
-        Console.WriteLine("Starting Web Application!");
+        while (true)
+            ManipularRequisicao();
+    }
 
+    private void ManipularRequisicao()
+    {
         var httpListener = new HttpListener();
 
-        foreach (var prefix in _prefixes)
-            httpListener.Prefixes.Add(prefix);
+        foreach (var prefixo in _prefixes)
+            httpListener.Prefixes.Add(prefixo);
 
         httpListener.Start();
 
-        var context = httpListener.GetContext();
-        var response = context.Response;
-        var request = context.Request;
+        var contexto = httpListener.GetContext();
+        var requisicao = contexto.Request;
+        var resposta = contexto.Response;
 
-        var path = request.Url.AbsolutePath;
+        var path = requisicao.Url.AbsolutePath;
 
-        if (path == "/Assets/css/styles.css")
+        if (Utilidades.EhArquivo(path))
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = "styles.css";
-            var researchStream = assembly.GetManifestResourceStream(resourceName);
-            var bytesResource = new byte[researchStream.Length];
+            var manipulador = new ManipuladorRequisicaoArquivo();
+            manipulador.Manipular(resposta, path);
+        }
+        else if (path == "/Cambio/MXN")
+        {
+            var controller = new CambioController();
+            var paginaConteudo = controller.MXN();
 
-            researchStream.Read(bytesResource, 0, bytesResource.Length);
+            var buffer = Encoding.UTF8.GetBytes(paginaConteudo);
+            
+            resposta.StatusCode = 200;
+            resposta.ContentType = "text/html; charset=utf-8";
+            resposta.ContentLength64 = buffer.Length;
 
+            resposta.OutputStream.Write(buffer, 0, buffer.Length);
+            resposta.OutputStream.Close();
+        }
+        else if (path == "/Cambio/USD")
+        {
+            var controller = new CambioController();
+            var paginaConteudo = controller.USD();
+
+            var buffer = Encoding.UTF8.GetBytes(paginaConteudo);
+
+            resposta.StatusCode = 200;
+            resposta.ContentType = "text/html; charset=utf-8";
+            resposta.ContentLength64 = buffer.Length;
+
+            resposta.OutputStream.Write(buffer, 0, buffer.Length);
+            resposta.OutputStream.Close();
         }
 
-        if (path == "/")
-            path = "/index.html";
-
-        var responseString = "<html><body>Hello World!</body></html>";
-        var responseBytes = Encoding.UTF8.GetBytes(responseString);
-
-        response.ContentType = "text/html; charset=utf-8";
-        response.StatusCode = 200;
-        response.ContentLength64 = responseBytes.Length;
-
-        response.OutputStream.Write(responseBytes, 0, responseBytes.Length);
-
-        response.OutputStream.Close();
-
         httpListener.Stop();
-
-        Console.WriteLine("Web Application started!");
+        
     }
 }
